@@ -103,8 +103,15 @@ class CourierRiderStatusUpdateAPIView(APIView):
 		if updated_fields:
 			rider.save(update_fields=list(set(updated_fields + ['updated_at'])))
 
-		response_serializer = RiderManagementDetailSerializer(rider)
-		return api_response(result=response_serializer.data, is_success=True, status_code=status.HTTP_200_OK)
+		return api_response(
+			result={
+				'message': 'Rider status updated successfully',
+				'operational_status': rider.operational_status,
+				'availability_status': rider.availability_status
+			},
+			is_success=True,
+			status_code=status.HTTP_200_OK
+		)
 
 
 class AssignOnlineOrderToRiderAPIView(APIView):
