@@ -46,9 +46,6 @@ class RiderManagementDetailSerializer(serializers.ModelSerializer):
             'vehicle_color',
             'operational_status',
             'availability_status',
-            'current_latitude',
-            'current_longitude',
-            'last_location_update',
             'assigned_orders',
         ]
 
