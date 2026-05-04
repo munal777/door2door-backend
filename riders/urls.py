@@ -1,18 +1,20 @@
 from django.urls import path
 
-from riders.views import (
+from riders.views.app import (
+    RiderAppAvailabilityUpdateAPIView,
+    RiderAppProfileAPIView,
+    RiderAssignedOrderDetailAPIView,
+    RiderAssignedOrderListAPIView,
+    RiderAssignedOrderStatusUpdateAPIView,
+    RiderOrderLiveLocationUpdateAPIView,
+)
+from riders.views.courier_crm import (
     ActiveRiderAssignmentListAPIView,
     AssignableOnlineOrderListAPIView,
     AssignOnlineOrderToRiderAPIView,
     CourierRiderDetailAPIView,
     CourierRiderListAPIView,
     CourierRiderStatusUpdateAPIView,
-    RiderAssignedOrderDetailAPIView,
-    RiderAssignedOrderListAPIView,
-    RiderAssignedOrderStatusUpdateAPIView,
-    RiderAppAvailabilityUpdateAPIView,
-    RiderAppProfileAPIView,
-    RiderOrderLiveLocationUpdateAPIView,
 )
 
 urlpatterns = [

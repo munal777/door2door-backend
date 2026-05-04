@@ -189,6 +189,10 @@ class ManualOrderUpdateSerializer(serializers.Serializer):
         choices=Order.PaymentStatus.choices,
         required=False
     )
+    payment_method = serializers.ChoiceField(
+        choices=Order.PaymentMethod.choices,
+        required=False
+    )
     # Optional remarks logged to tracking history on status change
     remarks = serializers.CharField(
         required=False,
