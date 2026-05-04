@@ -1,5 +1,6 @@
 from .order import (
     ManualOrderCreateSerializer,
+    ManualOrderUpdateSerializer,
     OrderListSerializer,
     OrderDetailSerializer,
 )
@@ -28,6 +29,7 @@ from .shipping_orders import (
 __all__ = [
     # Order serializers
     'ManualOrderCreateSerializer',
+    'ManualOrderUpdateSerializer',
     'OrderListSerializer',
     'OrderDetailSerializer',
     # Order request serializers
