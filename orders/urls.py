@@ -2,6 +2,7 @@ from django.urls import path
 from .views import (
     # Manual Order Views
     ManualOrderCreateAPIView,
+    ManualOrderUpdateAPIView,
     OrderListAPIView,
     OrderDetailAPIView,
     UpdateOrderPaymentStatusAPIView,
@@ -53,6 +54,7 @@ urlpatterns = [
     path('track/<str:order_number>/', PublicOrderTrackingAPIView.as_view(), name='public-order-tracking'),
 
     # Order wildcards — MUST BE LAST
+    path('<str:order_number>/update/', ManualOrderUpdateAPIView.as_view(), name='order-manual-update'),
     path('<str:order_number>/payment/', UpdateOrderPaymentStatusAPIView.as_view(), name='update-payment-status'),
     path('<str:order_number>/', OrderDetailAPIView.as_view(), name='order-detail'),
 ]

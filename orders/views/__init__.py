@@ -1,5 +1,6 @@
 from .order import (
     ManualOrderCreateAPIView,
+    ManualOrderUpdateAPIView,
     OrderListAPIView,
     OrderDetailAPIView,
     UpdateOrderPaymentStatusAPIView,
@@ -28,6 +29,7 @@ from .shipping_orders import (
 __all__ = [
     # Order views
     'ManualOrderCreateAPIView',
+    'ManualOrderUpdateAPIView',
     'OrderListAPIView',
     'OrderDetailAPIView',
     'UpdateOrderPaymentStatusAPIView',

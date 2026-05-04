@@ -174,6 +174,131 @@ class OrderListSerializer(serializers.ModelSerializer):
 
 
 
+class ManualOrderUpdateSerializer(serializers.Serializer):
+    """
+    Serializer for staff-initiated manual updates to an existing order.
+    Only mutable operational fields are exposed — identification, pricing,
+    sender/receiver, and courier fields are intentionally excluded.
+    """
+    # Status updates
+    status = serializers.ChoiceField(
+        choices=Order.OrderStatus.choices,
+        required=False
+    )
+    payment_status = serializers.ChoiceField(
+        choices=Order.PaymentStatus.choices,
+        required=False
+    )
+    # Optional remarks logged to tracking history on status change
+    remarks = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=500,
+        default=''
+    )
+    # Parcel details — allowed for walk-in / exception corrections
+    weight = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        min_value=0.01
+    )
+    total_quantity = serializers.IntegerField(
+        required=False,
+        min_value=1
+    )
+    length = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+        min_value=0.01
+    )
+    width = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+        min_value=0.01
+    )
+    height = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+        min_value=0.01
+    )
+    package_description = serializers.CharField(
+        required=False,
+        allow_blank=True
+    )
+
+    def validate(self, data):
+        if not data:
+            raise serializers.ValidationError(
+                "At least one field must be provided for update."
+            )
+        return data
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        """Apply the update and create a tracking entry on status change."""
+        remarks = validated_data.pop('remarks', '').strip()
+        old_status = instance.status
+        new_status = validated_data.get('status')
+
+        # Apply all provided fields
+        parcel_fields = ['weight', 'total_quantity', 'length', 'width', 'height', 'package_description']
+        status_fields = ['status', 'payment_status']
+        update_fields = []
+
+        for field in status_fields + parcel_fields:
+            if field in validated_data:
+                setattr(instance, field, validated_data[field])
+                update_fields.append(field)
+
+        # Sync timestamp if status changed to a terminal/milestone state
+        if new_status and new_status != old_status:
+            if new_status == Order.OrderStatus.PICKED_UP:
+                instance.picked_up_at = timezone.now()
+                update_fields.append('picked_up_at')
+            elif new_status == Order.OrderStatus.DELIVERED:
+                instance.delivered_at = timezone.now()
+                update_fields.append('delivered_at')
+            elif new_status == Order.OrderStatus.CANCELLED:
+                instance.cancelled_at = timezone.now()
+                update_fields.append('cancelled_at')
+
+        instance.save(update_fields=update_fields)
+
+        # Create tracking entry whenever status changes
+        if new_status and new_status != old_status:
+            default_remarks = {
+                Order.OrderStatus.CONFIRMED: f"Order status manually updated to Confirmed by staff.",
+                Order.OrderStatus.PICKUP_ASSIGNED: "Pickup has been assigned for this order.",
+                Order.OrderStatus.PICKED_UP: "Package has been picked up from sender.",
+                Order.OrderStatus.AT_ORIGIN_HUB: "Package arrived at origin hub.",
+                Order.OrderStatus.IN_TRANSIT: "Package is in transit to the destination hub.",
+                Order.OrderStatus.AT_DESTINATION_HUB: "Package arrived at destination hub.",
+                Order.OrderStatus.OUT_FOR_DELIVERY: "Package is out for delivery.",
+                Order.OrderStatus.DELIVERED: "Package has been successfully delivered.",
+                Order.OrderStatus.CANCELLED: "Order has been cancelled.",
+                Order.OrderStatus.RETURNED: "Package is being returned to sender.",
+            }
+            tracking_remarks = remarks or default_remarks.get(
+                new_status,
+                f"Order status updated to {instance.get_status_display()} by staff."
+            )
+            OrderTracking.objects.create(
+                order=instance,
+                status=new_status,
+                location_city=instance.sender_city,
+                remarks=tracking_remarks,
+            )
+
+        return instance
+
+
 class OrderDetailSerializer(serializers.ModelSerializer):
     """
     Detailed serializer for manual order display

@@ -6,6 +6,7 @@ from django.db.models import Q
 from ..models import Order, OrderTracking
 from ..serializers import (
     ManualOrderCreateSerializer,
+    ManualOrderUpdateSerializer,
     OrderDetailSerializer,
     OrderTrackingSerializer,
     OrderListSerializer,
@@ -219,4 +220,55 @@ class UpdateOrderPaymentStatusAPIView(APIView):
         )
 
 
+class ManualOrderUpdateAPIView(APIView):
+    """
+    Manually update order status, payment status, or parcel details.
 
+    Designed for CRM staff operations: walk-in corrections, exception handling,
+    and status overrides. All changes are audit-trailed via OrderTracking.
+
+    PATCH /orders/{order_number}/update/
+    """
+    permission_classes = [permissions.IsAuthenticated, HasOrderManagementPermission]
+
+    def patch(self, request, order_number):
+        courier_provider = request.courier
+
+        try:
+            order = Order.objects.get(
+                order_number=order_number,
+                courier_provider=courier_provider
+            )
+        except Order.DoesNotExist:
+            return api_response(
+                is_success=False,
+                error_message="Order not found.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = ManualOrderUpdateSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return api_response(
+                is_success=False,
+                error_message=serializer.errors,
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        updated_order = serializer.update(order, serializer.validated_data)
+
+        # Return full detail with refreshed tracking history
+        detail_serializer = OrderDetailSerializer(updated_order)
+        tracking_history = OrderTracking.objects.filter(
+            order=updated_order
+        ).order_by('-created_at')
+        tracking_serializer = OrderTrackingSerializer(tracking_history, many=True)
+
+        response_data = detail_serializer.data
+        response_data['tracking_history'] = tracking_serializer.data
+
+        return api_response(
+            result=response_data,
+            is_success=True,
+            status_code=status.HTTP_200_OK
+        )
