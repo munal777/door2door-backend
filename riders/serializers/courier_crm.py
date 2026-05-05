@@ -63,8 +63,13 @@ class RiderManagementDetailSerializer(serializers.ModelSerializer):
         ]
 
 
-class AssignOnlineOrderToRiderSerializer(serializers.Serializer):
+class BulkAssignOrdersSerializer(serializers.Serializer):
     rider_id = serializers.IntegerField(required=True)
+    order_numbers = serializers.ListField(
+        child=serializers.CharField(),
+        required=True,
+        min_length=1
+    )
     notes = serializers.CharField(required=False, allow_blank=True)
 
 
@@ -107,7 +112,6 @@ class AssignableOnlineOrderSerializer(serializers.ModelSerializer):
     service_type_display = serializers.CharField(source='get_service_type_display', read_only=True)
     active_rider_name = serializers.SerializerMethodField()
     active_assignment_id = serializers.SerializerMethodField()
-    created_at = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -115,27 +119,15 @@ class AssignableOnlineOrderSerializer(serializers.ModelSerializer):
             'id',
             'order_number',
             'order_type_display',
-            'status',
             'status_display',
-            'sender_name',
-            'sender_phone',
+            'sender_address',
             'sender_city',
-            'sender_state',
-            'receiver_name',
-            'receiver_phone',
+            'receiver_address',
             'receiver_city',
-            'receiver_state',
             'package_type_display',
             'service_type_display',
-            'weight',
-            'length',
-            'width',
-            'height',
-            'package_description',
-            'total_price',
             'active_assignment_id',
             'active_rider_name',
-            'created_at',
         ]
 
     def get_active_assignment_id(self, obj):
@@ -151,9 +143,6 @@ class AssignableOnlineOrderSerializer(serializers.ModelSerializer):
         if assignment and assignment.rider and assignment.rider.user:
             return assignment.rider.user.full_name
         return None
-
-    def get_created_at(self, obj):
-        return format_datetime(obj.created_at)
 
 
 class CourierRiderStatusUpdateSerializer(serializers.Serializer):

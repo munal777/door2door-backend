@@ -13,7 +13,7 @@ from riders.services import RiderAssignmentService, RiderAssignmentError
 
 from riders.serializers.courier_crm import (
     AssignableOnlineOrderSerializer,
-    AssignOnlineOrderToRiderSerializer,
+    BulkAssignOrdersSerializer,
     CourierRiderStatusUpdateSerializer,
     RiderManagementDetailSerializer,
     RiderManagementListSerializer,
@@ -103,19 +103,26 @@ class CourierRiderStatusUpdateAPIView(APIView):
 		if updated_fields:
 			rider.save(update_fields=list(set(updated_fields + ['updated_at'])))
 
-		response_serializer = RiderManagementDetailSerializer(rider)
-		return api_response(result=response_serializer.data, is_success=True, status_code=status.HTTP_200_OK)
+		return api_response(
+			result={
+				'message': 'Rider status updated successfully',
+				'operational_status': rider.operational_status,
+				'availability_status': rider.availability_status
+			},
+			is_success=True,
+			status_code=status.HTTP_200_OK
+		)
 
 
-class AssignOnlineOrderToRiderAPIView(APIView):
+class BulkAssignOrdersAPIView(APIView):
 	"""
-	Assign (or reassign) a confirmed online order to a rider for pickup.
+	Bulk assign multiple orders to a rider for pickup or delivery.
 	"""
 
 	permission_classes = [permissions.IsAuthenticated, HasRiderManagementPermission]
 
-	def post(self, request, order_number):
-		serializer = AssignOnlineOrderToRiderSerializer(data=request.data)
+	def post(self, request):
+		serializer = BulkAssignOrdersSerializer(data=request.data)
 		if not serializer.is_valid():
 			return api_response(
 				error_message=serializer.errors,
@@ -124,13 +131,11 @@ class AssignOnlineOrderToRiderAPIView(APIView):
 			)
 
 		courier_provider = request.courier
-
-		order = get_object_or_404(Order, order_number=order_number, courier_provider=courier_provider)
 		rider = get_object_or_404(Rider, id=serializer.validated_data['rider_id'], company=courier_provider)
 
 		try:
-			assignment = RiderAssignmentService.assign_online_order_for_pickup(
-				order=order,
+			assignments = RiderAssignmentService.bulk_assign_orders(
+				order_numbers=serializer.validated_data['order_numbers'],
 				rider=rider,
 				assigned_by=request.user,
 				notes=serializer.validated_data.get('notes', ''),
@@ -142,12 +147,13 @@ class AssignOnlineOrderToRiderAPIView(APIView):
 				status_code=status.HTTP_400_BAD_REQUEST,
 			)
 
-		response_serializer = RiderOrderAssignmentSerializer(assignment)
+		response_serializer = RiderOrderAssignmentSerializer(assignments, many=True)
 		return api_response(
 			result=response_serializer.data,
 			is_success=True,
 			status_code=status.HTTP_200_OK,
 		)
+
 
 
 class ActiveRiderAssignmentListAPIView(generics.ListAPIView):
@@ -186,7 +192,7 @@ class ActiveRiderAssignmentListAPIView(generics.ListAPIView):
 
 class AssignableOnlineOrderListAPIView(generics.ListAPIView):
 	"""
-	List online orders that can be assigned to riders, with shipment details.
+	List orders that can be assigned to riders (pickup or delivery).
 	"""
 
 	serializer_class = AssignableOnlineOrderSerializer
@@ -194,17 +200,28 @@ class AssignableOnlineOrderListAPIView(generics.ListAPIView):
 
 	def get_queryset(self):
 		courier_provider = self.request.courier
+		assignment_type = self.request.query_params.get('type', 'pickup')
+
 		active_assignment_queryset = RiderOrderAssignment.objects.select_related('rider__user').filter(
 			is_active=True,
 		)
 
 		queryset = Order.objects.filter(
 			courier_provider=courier_provider,
-			order_type=Order.OrderType.ONLINE,
-			status__in=[Order.OrderStatus.CONFIRMED, Order.OrderStatus.PICKUP_ASSIGNED],
 		).prefetch_related(
 			Prefetch('rider_assignments', queryset=active_assignment_queryset, to_attr='active_rider_assignments'),
 		).order_by('-created_at')
+
+		if assignment_type == 'delivery':
+			queryset = queryset.filter(
+				status=Order.OrderStatus.AT_DESTINATION_HUB
+			)
+		else:
+			# Default to pickup logic
+			queryset = queryset.filter(
+				order_type=Order.OrderType.ONLINE,
+				status=Order.OrderStatus.CONFIRMED,
+			)
 
 		search = self.request.query_params.get('search')
 		if search:

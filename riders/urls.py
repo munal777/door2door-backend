@@ -11,7 +11,7 @@ from riders.views.app import (
 from riders.views.courier_crm import (
     ActiveRiderAssignmentListAPIView,
     AssignableOnlineOrderListAPIView,
-    AssignOnlineOrderToRiderAPIView,
+    BulkAssignOrdersAPIView,
     CourierRiderDetailAPIView,
     CourierRiderListAPIView,
     CourierRiderStatusUpdateAPIView,
@@ -30,5 +30,5 @@ urlpatterns = [
     path('<int:pk>/', CourierRiderDetailAPIView.as_view(), name='courier-rider-detail'),
     path('assignments/active/', ActiveRiderAssignmentListAPIView.as_view(), name='active-rider-assignments'),
     path('assignments/orders/assignable/', AssignableOnlineOrderListAPIView.as_view(), name='assignable-online-order-list'),
-    path('assignments/orders/<str:order_number>/', AssignOnlineOrderToRiderAPIView.as_view(), name='assign-online-order-to-rider'),
+    path('assignments/orders/bulk/', BulkAssignOrdersAPIView.as_view(), name='bulk-assign-orders'),
 ]
