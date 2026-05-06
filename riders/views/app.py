@@ -182,9 +182,11 @@ class RiderAssignedOrderStatusUpdateAPIView(APIView):
 
 	ALLOWED_TRANSITIONS = {
 		Order.OrderStatus.PICKUP_ASSIGNED: {Order.OrderStatus.PICKED_UP},
-		Order.OrderStatus.PICKED_UP: {Order.OrderStatus.IN_TRANSIT},
-		Order.OrderStatus.IN_TRANSIT: {Order.OrderStatus.OUT_FOR_DELIVERY},
-		Order.OrderStatus.OUT_FOR_DELIVERY: {Order.OrderStatus.DELIVERED},
+		Order.OrderStatus.PICKED_UP: {Order.OrderStatus.OUT_FOR_DELIVERY},
+		Order.OrderStatus.OUT_FOR_DELIVERY: {
+			Order.OrderStatus.DELIVERED,
+			Order.OrderStatus.RETURNED,
+		},
 	}
 
 	def patch(self, request, order_number):
@@ -227,7 +229,16 @@ class RiderAssignedOrderStatusUpdateAPIView(APIView):
 		)
 		remarks = serializer.validated_data.get('remarks', '').strip()
 		if not remarks:
-			remarks = f'Rider updated order status to {new_status}.'
+			if new_status == Order.OrderStatus.PICKED_UP:
+				remarks = 'Rider picked up the parcel from sender.'
+			elif new_status == Order.OrderStatus.OUT_FOR_DELIVERY:
+				remarks = 'Rider took the parcel out for delivery.'
+			elif new_status == Order.OrderStatus.DELIVERED:
+				remarks = 'Rider successfully delivered the parcel.'
+			elif new_status == Order.OrderStatus.RETURNED:
+				remarks = 'Rider returned the parcel (delivery failed).'
+			else:
+				remarks = f'Rider updated order status to {new_status}.'
 
 		OrderTracking.objects.create(
 			order=order,
@@ -236,13 +247,18 @@ class RiderAssignedOrderStatusUpdateAPIView(APIView):
 			remarks=remarks,
 		)
 
-		if new_status == Order.OrderStatus.DELIVERED:
+		if new_status in [
+			Order.OrderStatus.DELIVERED,
+			Order.OrderStatus.RETURNED,
+		]:
 			assignment.is_active = False
 			assignment.unassigned_at = now
 			assignment.save(update_fields=['is_active', 'unassigned_at'])
-			if rider.availability_status != Rider.AvailabilityStatus.AVAILABLE:
-				rider.availability_status = Rider.AvailabilityStatus.AVAILABLE
-				rider.save(update_fields=['availability_status', 'updated_at'])
+			
+			if not RiderOrderAssignment.objects.filter(rider=rider, is_active=True).exists():
+				if rider.availability_status != Rider.AvailabilityStatus.AVAILABLE:
+					rider.availability_status = Rider.AvailabilityStatus.AVAILABLE
+					rider.save(update_fields=['availability_status', 'updated_at'])
 
 		response_data = RiderAssignedOrderDetailSerializer(assignment).data
 		return api_response(result=response_data, is_success=True, status_code=status.HTTP_200_OK)
