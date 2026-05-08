@@ -8,6 +8,7 @@ from rest_framework.exceptions import PermissionDenied
 from accounts.models import Rider
 from myproject.permissions import IsRiderUser
 from myproject.utils import api_response
+from notifications.services import PushNotificationService
 from orders.models import Order, OrderTracking
 from riders.models import RiderLocationUpdate, RiderOrderAssignment
 
@@ -134,6 +135,29 @@ class RiderAssignedOrderListAPIView(generics.ListAPIView):
 		return api_response(result=serializer.data, is_success=True, status_code=status.HTTP_200_OK)
 
 
+class RiderOrderHistoryListAPIView(generics.ListAPIView):
+	"""
+	List historical (completed / returned) orders for the authenticated rider.
+	Returns assignments where is_active=False, ordered by most recently unassigned.
+	"""
+
+	serializer_class = RiderAssignedOrderListSerializer
+	permission_classes = [permissions.IsAuthenticated, IsRiderUser]
+
+	def get_queryset(self):
+		rider = _get_authenticated_rider(self.request.user)
+		return RiderOrderAssignment.objects.select_related(
+			'order',
+		).filter(
+			rider=rider,
+			is_active=False,
+		).order_by('-unassigned_at')
+
+	def list(self, request, *args, **kwargs):
+		serializer = self.get_serializer(self.get_queryset(), many=True)
+		return api_response(result=serializer.data, is_success=True, status_code=status.HTTP_200_OK)
+
+
 class RiderAssignedOrderDetailAPIView(generics.RetrieveAPIView):
 	"""
 	Get details of a single assigned order for authenticated rider.
@@ -146,13 +170,14 @@ class RiderAssignedOrderDetailAPIView(generics.RetrieveAPIView):
 
 	def get_queryset(self):
 		rider = _get_authenticated_rider(self.request.user)
+		# No is_active filter — riders must be able to view completed/returned
+		# orders immediately after a terminal status update sets is_active=False.
 		return RiderOrderAssignment.objects.select_related(
 			'order',
 		).prefetch_related(
 			'location_updates',
 		).filter(
 			rider=rider,
-			is_active=True,
 		)
 
 	def retrieve(self, request, *args, **kwargs):
@@ -180,10 +205,11 @@ class RiderAssignedOrderStatusUpdateAPIView(APIView):
 
 	permission_classes = [permissions.IsAuthenticated, IsRiderUser]
 
+	# Rider-permitted status transitions.
 	ALLOWED_TRANSITIONS = {
-		Order.OrderStatus.PICKUP_ASSIGNED: {Order.OrderStatus.PICKED_UP},
-		Order.OrderStatus.PICKED_UP: {Order.OrderStatus.OUT_FOR_DELIVERY},
-		Order.OrderStatus.OUT_FOR_DELIVERY: {
+		Order.OrderStatus.PICKUP_ASSIGNED:   {Order.OrderStatus.HEADING_TO_PICKUP},
+		Order.OrderStatus.HEADING_TO_PICKUP: {Order.OrderStatus.PICKED_UP},
+		Order.OrderStatus.OUT_FOR_DELIVERY:  {
 			Order.OrderStatus.DELIVERED,
 			Order.OrderStatus.RETURNED,
 		},
@@ -229,7 +255,9 @@ class RiderAssignedOrderStatusUpdateAPIView(APIView):
 		)
 		remarks = serializer.validated_data.get('remarks', '').strip()
 		if not remarks:
-			if new_status == Order.OrderStatus.PICKED_UP:
+			if new_status == Order.OrderStatus.HEADING_TO_PICKUP:
+				remarks = 'Rider is on the way to pick up your parcel.'
+			elif new_status == Order.OrderStatus.PICKED_UP:
 				remarks = 'Rider picked up the parcel from sender.'
 			elif new_status == Order.OrderStatus.OUT_FOR_DELIVERY:
 				remarks = 'Rider took the parcel out for delivery.'
@@ -247,6 +275,24 @@ class RiderAssignedOrderStatusUpdateAPIView(APIView):
 			remarks=remarks,
 		)
 
+		# ── Notifications ───────────────────────────────────────────────────────
+		# Fire a push notification to the consumer for the heading_to_pickup event.
+		# Only applies to online orders that have a registered consumer.
+		if (
+			new_status == Order.OrderStatus.HEADING_TO_PICKUP
+			and order.order_type == Order.OrderType.ONLINE
+			and order.consumer_id
+		):
+			try:
+				PushNotificationService.send_heading_to_pickup_notification(
+					user_id=order.consumer_id,
+					order_number=order.order_number,
+				)
+			except Exception:
+				# Never let a notification failure break the status update
+				pass
+
+		# ── Assignment deactivation on terminal statuses ─────────────────────────
 		if new_status in [
 			Order.OrderStatus.DELIVERED,
 			Order.OrderStatus.RETURNED,
@@ -254,7 +300,7 @@ class RiderAssignedOrderStatusUpdateAPIView(APIView):
 			assignment.is_active = False
 			assignment.unassigned_at = now
 			assignment.save(update_fields=['is_active', 'unassigned_at'])
-			
+
 			if not RiderOrderAssignment.objects.filter(rider=rider, is_active=True).exists():
 				if rider.availability_status != Rider.AvailabilityStatus.AVAILABLE:
 					rider.availability_status = Rider.AvailabilityStatus.AVAILABLE

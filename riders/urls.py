@@ -6,6 +6,7 @@ from riders.views.app import (
     RiderAssignedOrderDetailAPIView,
     RiderAssignedOrderListAPIView,
     RiderAssignedOrderStatusUpdateAPIView,
+    RiderOrderHistoryListAPIView,
     RiderOrderLiveLocationUpdateAPIView,
 )
 from riders.views.courier_crm import (
@@ -21,6 +22,8 @@ urlpatterns = [
     path('app/profile/', RiderAppProfileAPIView.as_view(), name='rider-app-profile'),
     path('app/availability/', RiderAppAvailabilityUpdateAPIView.as_view(), name='rider-app-availability'),
     path('app/orders/', RiderAssignedOrderListAPIView.as_view(), name='rider-assigned-order-list'),
+    # 'history' must come before <str:order_number> to avoid being captured as an order number
+    path('app/orders/history/', RiderOrderHistoryListAPIView.as_view(), name='rider-order-history'),
     path('app/orders/<str:order_number>/', RiderAssignedOrderDetailAPIView.as_view(), name='rider-assigned-order-detail'),
     path('app/orders/<str:order_number>/status/', RiderAssignedOrderStatusUpdateAPIView.as_view(), name='rider-assigned-order-status-update'),
     path('app/orders/<str:order_number>/location/', RiderOrderLiveLocationUpdateAPIView.as_view(), name='rider-order-live-location-update'),

@@ -19,6 +19,7 @@ class RiderAssignedOrderListSerializer(serializers.ModelSerializer):
     sender_address = serializers.CharField(source='order.sender_address', read_only=True)
     package_type = serializers.CharField(source='order.package_type', read_only=True)
     assigned_at = serializers.SerializerMethodField()
+    unassigned_at = serializers.SerializerMethodField()
 
     class Meta:
         model = RiderOrderAssignment
@@ -32,10 +33,14 @@ class RiderAssignedOrderListSerializer(serializers.ModelSerializer):
             'package_type',
             'notes',
             'assigned_at',
+            'unassigned_at',
         ]
 
     def get_assigned_at(self, obj):
         return format_datetime(obj.assigned_at)
+
+    def get_unassigned_at(self, obj):
+        return format_datetime(obj.unassigned_at) if obj.unassigned_at else None
 
 
 class RiderAssignedOrderDetailSerializer(serializers.ModelSerializer):
