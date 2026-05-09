@@ -13,8 +13,10 @@ def auto_deactivate_rider_assignment(sender, instance, **kwargs):
 
     ACTIVE_PHASES = [
         Order.OrderStatus.PICKUP_ASSIGNED,
+        Order.OrderStatus.HEADING_TO_PICKUP,
         Order.OrderStatus.PICKED_UP,
         Order.OrderStatus.OUT_FOR_DELIVERY,
+        Order.OrderStatus.DELIVERY_ASSIGNED,
     ]
 
     # If the order is NOT in an active phase, any currently active assignment

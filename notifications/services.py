@@ -67,6 +67,23 @@ class PushNotificationService:
         )
 
     @classmethod
+    def send_heading_to_pickup_notification(cls, user_id: int, order_number: str):
+        """
+        Notifies the sender/consumer that the rider is on the way to pick up their parcel.
+        Only called for online orders that have a consumer.
+        """
+        cls.send_notification(
+            user_id=user_id,
+            title='Rider On the Way 🛵',
+            body=f'Your rider is heading to pick up order {order_number}.',
+            data={
+                'screen': 'track',
+                'orderNumber': order_number,
+                'event': 'heading_to_pickup',
+            }
+        )
+
+    @classmethod
     def _dispatch_to_expo(cls, user_id: int, messages: List[Dict], tokens: List[Dict]):
         try:
             response = requests.post(

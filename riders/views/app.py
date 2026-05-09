@@ -2,14 +2,15 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from rest_framework import generics, permissions, status
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.views import APIView
 from rest_framework.exceptions import PermissionDenied
 
 from accounts.models import Rider
 from myproject.permissions import IsRiderUser
 from myproject.utils import api_response
-from notifications.services import PushNotificationService
-from orders.models import Order, OrderTracking
+from notifications.tasks import send_heading_to_pickup_notification
+from orders.models import Order, OrderTracking, ProofOfDelivery
 from riders.models import RiderLocationUpdate, RiderOrderAssignment
 
 from riders.serializers.app import (
@@ -20,6 +21,8 @@ from riders.serializers.app import (
     RiderLiveLocationUpdateSerializer,
     RiderLocationUpdateResponseSerializer,
     RiderOrderStatusUpdateSerializer,
+    ProofOfDeliveryUploadSerializer,
+    ProofOfDeliveryResponseSerializer,
 )
 
 
@@ -27,6 +30,12 @@ def _get_authenticated_rider(user):
 	if not user.is_authenticated or user.user_type != 'rider' or not hasattr(user, 'rider_profile'):
 		raise PermissionDenied('Only riders can access rider app order APIs.')
 	return user.rider_profile
+
+
+TRACKING_ACTIVE_STATUSES = {
+	Order.OrderStatus.HEADING_TO_PICKUP,
+	Order.OrderStatus.OUT_FOR_DELIVERY,
+}
 
 
 class RiderAppProfileAPIView(APIView):
@@ -209,6 +218,7 @@ class RiderAssignedOrderStatusUpdateAPIView(APIView):
 	ALLOWED_TRANSITIONS = {
 		Order.OrderStatus.PICKUP_ASSIGNED:   {Order.OrderStatus.HEADING_TO_PICKUP},
 		Order.OrderStatus.HEADING_TO_PICKUP: {Order.OrderStatus.PICKED_UP},
+		Order.OrderStatus.DELIVERY_ASSIGNED: {Order.OrderStatus.OUT_FOR_DELIVERY},
 		Order.OrderStatus.OUT_FOR_DELIVERY:  {
 			Order.OrderStatus.DELIVERED,
 			Order.OrderStatus.RETURNED,
@@ -239,6 +249,15 @@ class RiderAssignedOrderStatusUpdateAPIView(APIView):
 				status_code=status.HTTP_400_BAD_REQUEST,
 			)
 
+		# ── Proof of Delivery gate (required before marking as delivered) ────────────
+		if new_status == Order.OrderStatus.DELIVERED:
+			if not ProofOfDelivery.objects.filter(order=order).exists():
+				return api_response(
+					error_message='Proof of delivery is required before marking this order as delivered. Please upload a delivery photo first.',
+					is_success=False,
+					status_code=status.HTTP_400_BAD_REQUEST,
+				)
+
 		now = timezone.now()
 		order.status = new_status
 		update_fields = ['status', 'updated_at']
@@ -249,6 +268,14 @@ class RiderAssignedOrderStatusUpdateAPIView(APIView):
 			order.delivered_at = now
 			update_fields.append('delivered_at')
 		order.save(update_fields=update_fields)
+
+		if new_status in [
+			Order.OrderStatus.HEADING_TO_PICKUP,
+			Order.OrderStatus.OUT_FOR_DELIVERY,
+		]:
+			if rider.availability_status != Rider.AvailabilityStatus.BUSY:
+				rider.availability_status = Rider.AvailabilityStatus.BUSY
+				rider.save(update_fields=['availability_status', 'updated_at'])
 
 		location_city = serializer.validated_data.get('location_city') or (
 			order.receiver_city if new_status == Order.OrderStatus.DELIVERED else order.sender_city
@@ -284,7 +311,7 @@ class RiderAssignedOrderStatusUpdateAPIView(APIView):
 			and order.consumer_id
 		):
 			try:
-				PushNotificationService.send_heading_to_pickup_notification(
+				send_heading_to_pickup_notification.delay(
 					user_id=order.consumer_id,
 					order_number=order.order_number,
 				)
@@ -330,6 +357,13 @@ class RiderOrderLiveLocationUpdateAPIView(APIView):
 			order__order_number=order_number,
 		)
 
+		if assignment.order.status not in TRACKING_ACTIVE_STATUSES:
+			return api_response(
+				error_message='Live tracking is only available when heading to pickup or out for delivery.',
+				is_success=False,
+				status_code=status.HTTP_400_BAD_REQUEST,
+			)
+
 		rider.update_location(
 			serializer.validated_data['latitude'],
 			serializer.validated_data['longitude'],
@@ -348,3 +382,70 @@ class RiderOrderLiveLocationUpdateAPIView(APIView):
 
 		response_data = RiderLocationUpdateResponseSerializer(location_update).data
 		return api_response(result=response_data, is_success=True, status_code=status.HTTP_201_CREATED)
+
+
+class RiderSubmitProofOfDeliveryAPIView(APIView):
+	"""
+	Upload a Proof of Delivery photo for an assigned order.
+	"""
+
+	permission_classes = [permissions.IsAuthenticated, IsRiderUser]
+	parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+	def post(self, request, order_number):
+		# Debug: log content-type + files so mis-configured clients are easy to spot.
+		print(
+			f'[POD] POST order={order_number} '
+			f'content_type={request.content_type!r} '
+			f'FILES={list(request.FILES.keys())} '
+			f'DATA keys={list(request.data.keys())}'
+		)
+
+		rider = _get_authenticated_rider(request.user)
+
+		serializer = ProofOfDeliveryUploadSerializer(data=request.data)
+		if not serializer.is_valid():
+			return api_response(
+				error_message=serializer.errors,
+				is_success=False,
+				status_code=status.HTTP_400_BAD_REQUEST,
+			)
+
+		assignment = get_object_or_404(
+			RiderOrderAssignment.objects.select_related('order'),
+			rider=rider,
+			is_active=True,
+			order__order_number=order_number,
+		)
+		order = assignment.order
+
+		# Order must be out for delivery before POD can be submitted
+		if order.status != Order.OrderStatus.OUT_FOR_DELIVERY:
+			return api_response(
+				error_message=(
+					f'Proof of delivery can only be submitted when the order is “out for delivery”. '
+					f'Current status: {order.get_status_display()}.'
+				),
+				is_success=False,
+				status_code=status.HTTP_400_BAD_REQUEST,
+			)
+
+		# Upsert: delete any prior POD for this order (e.g. retake scenario)
+		ProofOfDelivery.objects.filter(order=order).delete()
+
+		pod = ProofOfDelivery.objects.create(
+			order=order,
+			image=serializer.validated_data['image'],
+			notes=serializer.validated_data.get('notes', ''),
+			uploaded_by=request.user,
+		)
+
+		response_serializer = ProofOfDeliveryResponseSerializer(
+			pod,
+			context={'request': request},
+		)
+		return api_response(
+			result=response_serializer.data,
+			is_success=True,
+			status_code=status.HTTP_201_CREATED,
+		)

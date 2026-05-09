@@ -7,6 +7,12 @@ from orders.models import Order
 from riders.models import RiderLocationUpdate, RiderOrderAssignment
 
 
+TRACKING_ACTIVE_STATUSES = {
+    Order.OrderStatus.HEADING_TO_PICKUP,
+    Order.OrderStatus.OUT_FOR_DELIVERY,
+}
+
+
 class RiderOrderLocationConsumer(AsyncJsonWebsocketConsumer):
     """
     Real-time websocket stream for order location updates.
@@ -120,6 +126,7 @@ class RiderOrderLocationConsumer(AsyncJsonWebsocketConsumer):
             order__order_number=order_number,
             rider=user.rider_profile,
             is_active=True,
+            order__status__in=TRACKING_ACTIVE_STATUSES,
         ).exists()
 
     @database_sync_to_async
@@ -132,6 +139,9 @@ class RiderOrderLocationConsumer(AsyncJsonWebsocketConsumer):
                 is_active=True,
             )
         except (Rider.DoesNotExist, RiderOrderAssignment.DoesNotExist):
+            return None
+
+        if assignment.order.status not in TRACKING_ACTIVE_STATUSES:
             return None
 
         rider.update_location(latitude, longitude)

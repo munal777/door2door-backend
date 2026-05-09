@@ -284,6 +284,7 @@ class ManualOrderUpdateSerializer(serializers.Serializer):
                 Order.OrderStatus.AT_ORIGIN_HUB: "Package arrived at origin hub.",
                 Order.OrderStatus.IN_TRANSIT: "Package is in transit to the destination hub.",
                 Order.OrderStatus.AT_DESTINATION_HUB: "Package arrived at destination hub.",
+                Order.OrderStatus.DELIVERY_ASSIGNED: "Delivery has been assigned to a rider.",
                 Order.OrderStatus.OUT_FOR_DELIVERY: "Package is out for delivery.",
                 Order.OrderStatus.DELIVERED: "Package has been successfully delivered.",
                 Order.OrderStatus.CANCELLED: "Order has been cancelled.",
