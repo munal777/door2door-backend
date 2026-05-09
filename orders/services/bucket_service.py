@@ -53,7 +53,11 @@ class BucketTrackingService:
                 order = bucket_order.order
                 
                 # Skip orders already out for delivery or delivered
-                if order.status in [Order.OrderStatus.OUT_FOR_DELIVERY, Order.OrderStatus.DELIVERED]:
+                if order.status in [
+                    Order.OrderStatus.DELIVERY_ASSIGNED,
+                    Order.OrderStatus.OUT_FOR_DELIVERY,
+                    Order.OrderStatus.DELIVERED,
+                ]:
                     continue
                 
                 order.status = Order.OrderStatus.IN_TRANSIT
@@ -77,8 +81,9 @@ class BucketTrackingService:
                 # Skip orders already at destination or beyond
                 if order.status in [
                     Order.OrderStatus.AT_DESTINATION_HUB,
+                    Order.OrderStatus.DELIVERY_ASSIGNED,
                     Order.OrderStatus.OUT_FOR_DELIVERY,
-                    Order.OrderStatus.DELIVERED
+                    Order.OrderStatus.DELIVERED,
                 ]:
                     continue
                 
@@ -103,8 +108,9 @@ class BucketTrackingService:
                 # Skip orders already at destination or beyond
                 if order.status in [
                     Order.OrderStatus.AT_DESTINATION_HUB,
+                    Order.OrderStatus.DELIVERY_ASSIGNED,
                     Order.OrderStatus.OUT_FOR_DELIVERY,
-                    Order.OrderStatus.DELIVERED
+                    Order.OrderStatus.DELIVERED,
                 ]:
                     continue
                 
@@ -127,7 +133,12 @@ class BucketTrackingService:
                 order = bucket_order.order
                 
                 # Skip orders already at destination (unloaded at previous stop), out for delivery, or delivered
-                if order.status in [Order.OrderStatus.AT_DESTINATION_HUB, Order.OrderStatus.OUT_FOR_DELIVERY, Order.OrderStatus.DELIVERED]:
+                if order.status in [
+                    Order.OrderStatus.AT_DESTINATION_HUB,
+                    Order.OrderStatus.DELIVERY_ASSIGNED,
+                    Order.OrderStatus.OUT_FOR_DELIVERY,
+                    Order.OrderStatus.DELIVERED,
+                ]:
                     continue
                 
                 # Check if this location is the order's destination

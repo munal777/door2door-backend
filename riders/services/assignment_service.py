@@ -17,24 +17,33 @@ class RiderAssignmentService:
         """
         Generic assign method that handles both pickup and delivery based on order status.
         """
-        if not rider.can_accept_orders:
-            raise RiderAssignmentError(f'Rider {rider.user.full_name} is not available.')
+        if (
+            not rider.user.is_active
+            or rider.operational_status != Rider.OperationalStatus.ACTIVE
+            or not rider.is_verified
+            or not rider.company.can_operate
+        ):
+            raise RiderAssignmentError(f'Rider {rider.user.full_name} is not eligible for assignments.')
 
         if rider.company_id != order.courier_provider_id:
             raise RiderAssignmentError(f'Order {order.order_number} does not belong to this courier.')
 
         # Determine assignment type and target status
         is_pickup = order.status in [Order.OrderStatus.CONFIRMED, Order.OrderStatus.PICKUP_ASSIGNED]
-        is_delivery = order.status in [Order.OrderStatus.AT_DESTINATION_HUB, Order.OrderStatus.OUT_FOR_DELIVERY]
+        is_delivery = order.status in [
+            Order.OrderStatus.AT_DESTINATION_HUB,
+            Order.OrderStatus.DELIVERY_ASSIGNED,
+            Order.OrderStatus.OUT_FOR_DELIVERY,
+        ]
 
         if not (is_pickup or is_delivery):
             raise RiderAssignmentError(f'Order {order.order_number} is not in an assignable status.')
 
-        target_status = Order.OrderStatus.PICKUP_ASSIGNED if is_pickup else Order.OrderStatus.OUT_FOR_DELIVERY
+        target_status = Order.OrderStatus.PICKUP_ASSIGNED if is_pickup else Order.OrderStatus.DELIVERY_ASSIGNED
         location_city = order.sender_city if is_pickup else order.receiver_city
         remarks = (
             f"Pickup assigned to rider {rider.user.full_name}." if is_pickup 
-            else f"Out for delivery with rider {rider.user.full_name}."
+            else f"Delivery assigned to rider {rider.user.full_name}."
         )
 
         now = timezone.now()
@@ -61,11 +70,6 @@ class RiderAssignmentService:
         if order.status != target_status:
             order.status = target_status
             order.save(update_fields=['status'])
-
-        # Set rider to busy
-        if rider.availability_status != Rider.AvailabilityStatus.BUSY:
-            rider.availability_status = Rider.AvailabilityStatus.BUSY
-            rider.save(update_fields=['availability_status', 'updated_at'])
 
         # Create tracking entry
         OrderTracking.objects.create(

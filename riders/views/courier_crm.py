@@ -214,7 +214,10 @@ class AssignableOnlineOrderListAPIView(generics.ListAPIView):
 
 		if assignment_type == 'delivery':
 			queryset = queryset.filter(
-				status=Order.OrderStatus.AT_DESTINATION_HUB
+				status__in=[
+					Order.OrderStatus.AT_DESTINATION_HUB,
+					Order.OrderStatus.DELIVERY_ASSIGNED,
+				]
 			)
 		else:
 			# Default to pickup logic

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from accounts.models import Rider
-from orders.models import Order
+from orders.models import Order, ProofOfDelivery
 from riders.models import RiderOrderAssignment, RiderLocationUpdate
 from myproject.utils import format_datetime
 
@@ -67,6 +67,7 @@ class RiderAssignedOrderDetailSerializer(serializers.ModelSerializer):
     total_price = serializers.DecimalField(source='order.total_price', max_digits=10, decimal_places=2, read_only=True)
     assigned_at = serializers.SerializerMethodField()
     last_location_update_at = serializers.SerializerMethodField()
+    proof_of_delivery = serializers.SerializerMethodField()
 
     class Meta:
         model = RiderOrderAssignment
@@ -96,6 +97,7 @@ class RiderAssignedOrderDetailSerializer(serializers.ModelSerializer):
             'notes',
             'assigned_at',
             'last_location_update_at',
+            'proof_of_delivery',
         ]
 
     def get_assigned_at(self, obj):
@@ -106,6 +108,22 @@ class RiderAssignedOrderDetailSerializer(serializers.ModelSerializer):
         if latest_update:
             return format_datetime(latest_update.recorded_at)
         return None
+
+    def get_proof_of_delivery(self, obj):
+        try:
+            pod = obj.order.proof_of_delivery
+        except ProofOfDelivery.DoesNotExist:
+            return None
+        request = self.context.get('request')
+        image_url = pod.image.url if pod.image else None
+        if image_url and request:
+            image_url = request.build_absolute_uri(image_url)
+        return {
+            'id': pod.id,
+            'image_url': image_url,
+            'notes': pod.notes,
+            'uploaded_at': format_datetime(pod.uploaded_at),
+        }
 
 
 class RiderOrderStatusUpdateSerializer(serializers.Serializer):
@@ -192,3 +210,61 @@ class RiderAppProfileSerializer(serializers.ModelSerializer):
 
 class RiderAppAvailabilityUpdateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=Rider.AvailabilityStatus.choices)
+
+
+# ─── Proof of Delivery ────────────────────────────────────────────────────────
+
+MAX_POD_IMAGE_SIZE_MB = 10
+MAX_POD_IMAGE_BYTES = MAX_POD_IMAGE_SIZE_MB * 1024 * 1024
+
+
+class ProofOfDeliveryUploadSerializer(serializers.Serializer):
+    """
+    Validates the image and optional notes for a Proof of Delivery upload.
+    """
+    image = serializers.ImageField(
+        help_text='Delivery proof photo (JPEG / PNG / WebP, max 10 MB).'
+    )
+    notes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=500,
+        default='',
+        help_text='Optional rider notes about the delivery.'
+    )
+
+    def validate_image(self, value):
+        if value.size > MAX_POD_IMAGE_BYTES:
+            raise serializers.ValidationError(
+                f'Image file is too large. Maximum allowed size is {MAX_POD_IMAGE_SIZE_MB} MB.'
+            )
+        allowed_types = ['image/jpeg', 'image/png', 'image/webp']
+        content_type = getattr(value, 'content_type', '')
+        if content_type and content_type not in allowed_types:
+            raise serializers.ValidationError(
+                'Unsupported image format. Please use JPEG, PNG, or WebP.'
+            )
+        return value
+
+
+class ProofOfDeliveryResponseSerializer(serializers.ModelSerializer):
+    """
+    Serializer used to return POD data after a successful upload.
+    """
+    image_url = serializers.SerializerMethodField()
+    uploaded_at = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProofOfDelivery
+        fields = ['id', 'image_url', 'notes', 'uploaded_at']
+
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        url = obj.image.url if obj.image else None
+        if url and request:
+            return request.build_absolute_uri(url)
+        return url
+
+    def get_uploaded_at(self, obj):
+        from myproject.utils import format_datetime
+        return format_datetime(obj.uploaded_at)

@@ -12,6 +12,7 @@ class RiderOrderAssignment(models.Model):
 		'orders.Order',
 		on_delete=models.CASCADE,
 		related_name='rider_assignments',
+		unique=True
 	)
 	rider = models.ForeignKey(
 		'accounts.Rider',
