@@ -393,14 +393,6 @@ class RiderSubmitProofOfDeliveryAPIView(APIView):
 	parser_classes = [MultiPartParser, FormParser, JSONParser]
 
 	def post(self, request, order_number):
-		# Debug: log content-type + files so mis-configured clients are easy to spot.
-		print(
-			f'[POD] POST order={order_number} '
-			f'content_type={request.content_type!r} '
-			f'FILES={list(request.FILES.keys())} '
-			f'DATA keys={list(request.data.keys())}'
-		)
-
 		rider = _get_authenticated_rider(request.user)
 
 		serializer = ProofOfDeliveryUploadSerializer(data=request.data)
