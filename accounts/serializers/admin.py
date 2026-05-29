@@ -5,7 +5,7 @@ from rest_framework import serializers
 
 from accounts.models import CourierProvider, CourierStaff, DocumentVerification, User, Rider
 from accounts.tasks import send_approval_email, send_rejection_email
-from myproject.utils import format_datetime
+from myproject.utils import build_file_url, format_datetime
 
 
 class CourierProviderApprovalSerializer(serializers.Serializer):
@@ -136,20 +136,17 @@ class CourierProviderDetailSerializer(serializers.ModelSerializer):
 
     def get_logo_url(self, obj):
         request = self.context.get('request')
-        if not getattr(obj, 'logo', None):
-            return None
-        if request is None:
-            return obj.logo.url
-        return request.build_absolute_uri(obj.logo.url)
+        return build_file_url(request, obj.logo)
     
     def get_documents(self, obj):
         """Get all documents with their verification status"""
         documents = obj.documents.all()
+        request = self.context.get('request')
         return [{
             'id': doc.id,
             'document_type': doc.document_type,
             'document_number': doc.document_number,
-            'uploaded_file': self.context.get('request').build_absolute_uri(doc.uploaded_file.url) if doc.uploaded_file else None,
+            'uploaded_file': build_file_url(request, doc.uploaded_file),
             'status': doc.status,
             'uploaded_at': format_datetime(doc.uploaded_at),
             'verified_at': format_datetime(doc.verified_at),
@@ -282,11 +279,12 @@ class RiderAdminDetailSerializer(serializers.ModelSerializer):
     def get_documents(self, obj):
         """Get all documents with their verification status"""
         documents = obj.documents.all()
+        request = self.context.get('request')
         return [{
             'id': doc.id,
             'document_type': doc.document_type,
             'document_number': doc.document_number,
-            'uploaded_file': self.context.get('request').build_absolute_uri(doc.uploaded_file.url) if doc.uploaded_file else None,
+            'uploaded_file': build_file_url(request, doc.uploaded_file),
             'status': doc.status,
             'uploaded_at': format_datetime(doc.uploaded_at),
             'verified_at': format_datetime(doc.verified_at),
