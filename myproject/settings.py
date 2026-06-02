@@ -205,7 +205,7 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 
 # Frontend app URLs used in emails
-FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
+FRONTEND_URL = config('FRONTEND_URL', default='https://door2door.dev')
 FRONTEND_STAFF_REGISTRATION_PATH = config('FRONTEND_STAFF_REGISTRATION_PATH', default='/staff/register')
 FRONTEND_RIDER_REGISTRATION_PATH = config('FRONTEND_RIDER_REGISTRATION_PATH', default='/rider/register')
 

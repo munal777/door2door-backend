@@ -22,9 +22,9 @@ def _from_email() -> str:
 
 
 def _frontend_base_url() -> str:
-    configured = str(getattr(settings, "FRONTEND_URL", "http://localhost:5173")).strip()
+    configured = str(getattr(settings, "FRONTEND_URL", "https://door2door.dev")).strip()
     if not configured:
-        return "http://localhost:5173"
+        return "https://door2door.dev"
     return configured.rstrip("/")
 
 
