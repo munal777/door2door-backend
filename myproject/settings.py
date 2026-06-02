@@ -43,6 +43,7 @@ THIRD_PARTY_APPS = [
     'drf_spectacular',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
+    "storages",
 ]
 
 INSTALLED_APPS = ['daphne'] + DJANGO_APPS + LOCAL_APPS + THIRD_PARTY_APPS
@@ -218,6 +219,32 @@ CHANNEL_LAYERS = {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
             'hosts': [config('CHANNEL_REDIS_URL', default="redis://localhost:6379/1")],
+        },
+    },
+}
+
+# ─── AWS S3 ──────────────────────────────────────────
+AWS_ACCESS_KEY_ID       = config('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY   = config('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
+AWS_S3_REGION_NAME      = config('AWS_S3_REGION_NAME', default='ap-south-1')
+
+# AWS Storage Configs
+STORAGES = {
+    "default": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "region_name"    : AWS_S3_REGION_NAME,
+            "access_key"     : AWS_ACCESS_KEY_ID,
+            "secret_key"     : AWS_SECRET_ACCESS_KEY,
+            "default_acl"    : None,          # private — never public
+            "file_overwrite" : False,         # never overwrite same filename
+            "querystring_auth": True,         # presigned URLs always
+            "querystring_expire": 3600,       # URL valid for 1 hour
+            "location"       : "",            # root of bucket
+            "object_parameters": {
+                "CacheControl": "max-age=86400",  # browser cache 1 day
+            },
         },
     },
 }
