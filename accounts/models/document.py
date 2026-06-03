@@ -5,6 +5,8 @@ from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from django.utils import timezone
 
+from myproject.storage import ProofOfDeliveryStorage, DocumentStorage
+
 
 class DocumentVerification(models.Model):
     """
@@ -44,7 +46,7 @@ class DocumentVerification(models.Model):
         help_text=_("Document identification number")
     )
     uploaded_file = models.FileField(
-        upload_to='documents/%Y/%m/%d/',
+        storage=DocumentStorage(),
         help_text=_("Uploaded document file (PDF, JPG, PNG)")
     )
     
