@@ -3,7 +3,7 @@ from rest_framework import serializers
 from accounts.models import Rider
 from orders.models import Order, ProofOfDelivery
 from riders.models import RiderOrderAssignment, RiderLocationUpdate
-from myproject.utils import format_datetime
+from myproject.utils import build_file_url, format_datetime
 
 
 class RiderAssignedOrderListSerializer(serializers.ModelSerializer):
@@ -115,9 +115,7 @@ class RiderAssignedOrderDetailSerializer(serializers.ModelSerializer):
         except ProofOfDelivery.DoesNotExist:
             return None
         request = self.context.get('request')
-        image_url = pod.image.url if pod.image else None
-        if image_url and request:
-            image_url = request.build_absolute_uri(image_url)
+        image_url = build_file_url(request, pod.image)
         return {
             'id': pod.id,
             'image_url': image_url,
@@ -260,10 +258,7 @@ class ProofOfDeliveryResponseSerializer(serializers.ModelSerializer):
 
     def get_image_url(self, obj):
         request = self.context.get('request')
-        url = obj.image.url if obj.image else None
-        if url and request:
-            return request.build_absolute_uri(url)
-        return url
+        return build_file_url(request, obj.image)
 
     def get_uploaded_at(self, obj):
         from myproject.utils import format_datetime
