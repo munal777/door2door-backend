@@ -6,6 +6,7 @@ from rest_framework import serializers
 
 from accounts.models.provider import CourierProvider
 from accounts.models.document import DocumentVerification
+from myproject.utils import build_file_url
 
 User = get_user_model()
 
@@ -165,11 +166,7 @@ class CourierProviderLogoSerializer(serializers.ModelSerializer):
 
     def get_logo_url(self, obj):
         request = self.context.get('request')
-        if not obj.logo:
-            return None
-        if request is None:
-            return obj.logo.url
-        return request.build_absolute_uri(obj.logo.url)
+        return build_file_url(request, obj.logo)
 
 
 class CourierProviderProfileSerializer(serializers.ModelSerializer):
@@ -218,8 +215,4 @@ class CourierProviderProfileSerializer(serializers.ModelSerializer):
 
     def get_logo_url(self, obj):
         request = self.context.get('request')
-        if not obj.logo:
-            return None
-        if request is None:
-            return obj.logo.url
-        return request.build_absolute_uri(obj.logo.url)
+        return build_file_url(request, obj.logo)

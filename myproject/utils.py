@@ -29,3 +29,12 @@ def format_datetime(dt):
     if isinstance(dt, datetime):
         return dt.strftime('%Y-%m-%d %H:%M:%S')
     return dt
+
+
+def build_file_url(request, file_field):
+    if not file_field:
+        return None
+    url = file_field.url
+    if request and url and not url.startswith('http'):
+        return request.build_absolute_uri(url)
+    return url

@@ -138,8 +138,8 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 # Media files (User uploaded files)
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+# MEDIA_URL = '/media/'
+# MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -232,19 +232,23 @@ AWS_S3_REGION_NAME      = config('AWS_S3_REGION_NAME', default='ap-south-1')
 # AWS Storage Configs
 STORAGES = {
     "default": {
-        "BACKEND": "storages.backends.s3.S3Storage",
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage", 
         "OPTIONS": {
-            "region_name"    : AWS_S3_REGION_NAME,
-            "access_key"     : AWS_ACCESS_KEY_ID,
-            "secret_key"     : AWS_SECRET_ACCESS_KEY,
-            "default_acl"    : None,          # private — never public
-            "file_overwrite" : False,         # never overwrite same filename
-            "querystring_auth": True,         # presigned URLs always
-            "querystring_expire": 3600,       # URL valid for 1 hour
-            "location"       : "",            # root of bucket
-            "object_parameters": {
-                "CacheControl": "max-age=86400",  # browser cache 1 day
+            "bucket_name"       : AWS_STORAGE_BUCKET_NAME,      
+            "region_name"       : AWS_S3_REGION_NAME,
+            "access_key"        : AWS_ACCESS_KEY_ID,
+            "secret_key"        : AWS_SECRET_ACCESS_KEY,
+            "default_acl"       : None,
+            "file_overwrite"    : False,
+            "querystring_auth"  : True,
+            "querystring_expire": 3600,
+            "location"          : "",
+            "object_parameters" : {
+                "CacheControl": "max-age=86400",
             },
         },
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
