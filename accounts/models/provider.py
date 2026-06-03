@@ -5,6 +5,7 @@ from django.utils.crypto import get_random_string
 
 from .user import User
 from .document import DocumentVerification
+from myproject.storage import CourierLogoStorage
 
 class CourierProvider(models.Model):
     """
@@ -26,7 +27,7 @@ class CourierProvider(models.Model):
     )
 
     logo = models.ImageField(
-        upload_to='courier_providers/logos/',
+        storage=CourierLogoStorage(),
         blank=True,
         null=True,
         help_text=_("Optional courier company logo")

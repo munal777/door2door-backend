@@ -7,6 +7,8 @@ from .user import User
 from .provider import CourierProvider
 from .document import DocumentVerification
 
+from myproject.storage import ProfileStorage
+
 class Rider(models.Model):
     """
     Courier Rider/Driver Model.
@@ -151,7 +153,7 @@ class Rider(models.Model):
     
     # Profile
     profile_photo = models.ImageField(
-        upload_to='rider_photos/',
+        storage=ProfileStorage(),
         blank=True,
         null=True,
         help_text=_("Rider profile photo")

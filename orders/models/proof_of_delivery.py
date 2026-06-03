@@ -4,15 +4,7 @@ from django.db import models
 from django.core.validators import FileExtensionValidator
 
 from .order import Order
-
-
-def pod_upload_path(instance, filename):
-    """Organise POD images by date: media/pod/YYYY/MM/DD/<order_number>_<filename>"""
-    today = timezone.now()
-    ext = os.path.splitext(filename)[1].lower()
-    safe_name = f"{instance.order.order_number}{ext}"
-    return f"pod/{today.year}/{today.month:02d}/{today.day:02d}/{safe_name}"
-
+from myproject.storage import ProofOfDeliveryStorage
 
 class ProofOfDelivery(models.Model):
     """
@@ -29,7 +21,7 @@ class ProofOfDelivery(models.Model):
         help_text='The order this proof belongs to.'
     )
     image = models.ImageField(
-        upload_to=pod_upload_path,
+        storage=ProofOfDeliveryStorage(),
         validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'webp'])],
         help_text='Delivery proof photo captured by the rider.'
     )
