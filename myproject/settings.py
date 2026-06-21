@@ -87,14 +87,7 @@ USE_POSTGRESQL = config('USE_POSTGRESQL', default=False, cast=bool)
 
 if USE_POSTGRESQL:
     DATABASES = {
-        'default': {
-            'ENGINE': config('PROD_DB_ENGINE'),
-            'NAME': config('PROD_DB_NAME'),
-            'USER': config('PROD_DB_USER'),
-            'PASSWORD': config('PROD_DB_PASSWORD'),
-            'HOST': config('PROD_DB_HOST'),
-            'PORT': config('PROD_DB_PORT', cast=int),
-        }
+        'default': config('DATABASE_URL')
     }
 else:
     DATABASES = {
@@ -232,7 +225,7 @@ AWS_S3_REGION_NAME      = config('AWS_S3_REGION_NAME', default='ap-south-1')
 # AWS Storage Configs
 STORAGES = {
     "default": {
-        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage", 
+        "BACKEND": "storages.backends.s3.S3Boto3Storage", 
         "OPTIONS": {
             "bucket_name"       : AWS_STORAGE_BUCKET_NAME,      
             "region_name"       : AWS_S3_REGION_NAME,
@@ -246,6 +239,7 @@ STORAGES = {
             "object_parameters" : {
                 "CacheControl": "max-age=86400",
             },
+            # "endpoint_url"     : f"https://s3.{AWS_S3_REGION_NAME}.amazonaws.com",
         },
     },
     "staticfiles": {
